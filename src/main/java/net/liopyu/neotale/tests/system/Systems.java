@@ -1,4 +1,4 @@
-package net.liopyu.neotale.system;
+package net.liopyu.neotale.tests.system;
 
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;

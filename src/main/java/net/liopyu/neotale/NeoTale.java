@@ -13,7 +13,7 @@ import net.liopyu.neotale.runtime.NeoTalePluginSetupEventAccess;
 import javax.annotation.Nonnull;
 
 public class NeoTale extends JavaPlugin {
-    public static final HytaleLogger LOGGER = LogUtil.getLogger().getSubLogger("HyTools");
+    public static final HytaleLogger LOGGER = LogUtil.getLogger().getSubLogger("NeoTale");
 
     public NeoTale(@Nonnull JavaPluginInit init) {
         super(init);
