@@ -22,7 +22,7 @@ public class NeoTale extends JavaPlugin {
     @Override
     protected void setup() {
         super.setup();
-        System.out.println("Loading NeoTale!");
+        System.out.println("Loading NeoTale! - Liopyu");
         for (PluginBase pb : PluginManager.get().getPlugins()) {
             if (pb instanceof JavaPlugin jp && jp != this) {
                 NeoTaleAutoBinder.bind(jp);

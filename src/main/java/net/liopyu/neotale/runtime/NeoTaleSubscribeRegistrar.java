@@ -18,15 +18,58 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public final class NeoTaleSubscribeRegistrar {
 
+    private static final ConcurrentHashMap<String, ConcurrentHashMap<Class<?>, java.util.concurrent.CopyOnWriteArrayList<Method>>> ECS_METHODS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, ConcurrentHashMap<Class<?>, ISystemHolder>> ECS_SYSTEMS = new ConcurrentHashMap<>();
+
+    private interface ISystemHolder {
+        Object system();
+    }
+
+    private static final class EcsDispatchSystem<T extends EcsEvent> extends EntityEventSystem<EntityStore, T> {
+        private final java.util.concurrent.CopyOnWriteArrayList<Method> methods;
+
+        private EcsDispatchSystem(@Nonnull Class<T> eventType, @Nonnull java.util.concurrent.CopyOnWriteArrayList<Method> methods) {
+            super(eventType);
+            this.methods = methods;
+        }
+
+        @Override
+        public void handle(int index, @Nonnull ArchetypeChunk<EntityStore> chunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer, @Nonnull T event) {
+            for (int i = 0; i < methods.size(); i++) {
+                invokeStatic(methods.get(i), event);
+            }
+        }
+
+        @Override
+        public @Nullable Query<EntityStore> getQuery() {
+            return Query.any();
+        }
+    }
+
     public static void registerAll(@Nonnull JavaPlugin plugin, @Nonnull EventRegistry registry, @Nonnull Class<?>... subscriberClasses) {
         for (int i = 0; i < subscriberClasses.length; i++) {
             registerClass(plugin, registry, subscriberClasses[i]);
+        }
+
+        String key = ecsKey(plugin);
+        ConcurrentHashMap<Class<?>, ISystemHolder> systems = ECS_SYSTEMS.get(key);
+        if (systems == null || systems.isEmpty()) {
+            return;
+        }
+
+        for (ISystemHolder holder : systems.values()) {
+            try {
+                plugin.getEntityStoreRegistry().registerSystem((com.hypixel.hytale.component.system.ISystem<EntityStore>) holder.system());
+            } catch (IllegalArgumentException ignored) {
+            }
         }
     }
 
@@ -64,7 +107,7 @@ public final class NeoTaleSubscribeRegistrar {
             }
 
             if (EcsEvent.class.isAssignableFrom(eventType)) {
-                registerEcs(plugin, ann, m, eventType);
+                registerEcs(plugin, m, eventType);
             }
         }
     }
@@ -102,22 +145,29 @@ public final class NeoTaleSubscribeRegistrar {
         }
     }
 
-    private static void registerEcs(@Nonnull JavaPlugin plugin, @Nonnull SubscribeEvent ann, @Nonnull Method m, @Nonnull Class<?> eventTypeRaw) {
-        Class<? extends EcsEvent> eventType = (Class<? extends EcsEvent>) eventTypeRaw;
+    private static void registerEcs(@Nonnull JavaPlugin plugin, @Nonnull Method m, @Nonnull Class<?> eventTypeRaw) {
+        String key = ecsKey(plugin);
 
-        EntityEventSystem<EntityStore, EcsEvent> sys = new EntityEventSystem<EntityStore, EcsEvent>((Class) eventType) {
-            @Override
-            public void handle(int index, @Nonnull ArchetypeChunk<EntityStore> chunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer, @Nonnull EcsEvent event) {
-                invokeStatic(m, event);
-            }
+        ConcurrentHashMap<Class<?>, java.util.concurrent.CopyOnWriteArrayList<Method>> perPlugin =
+                ECS_METHODS.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
 
-            @Override
-            public @Nullable Query<EntityStore> getQuery() {
-                return ann.ecsAny() ? Query.any() : Query.any();
-            }
-        };
+        java.util.concurrent.CopyOnWriteArrayList<Method> list =
+                perPlugin.computeIfAbsent(eventTypeRaw, k -> new java.util.concurrent.CopyOnWriteArrayList<>());
 
-        plugin.getEntityStoreRegistry().registerSystem(sys);
+        list.add(m);
+
+        ConcurrentHashMap<Class<?>, ISystemHolder> systems =
+                ECS_SYSTEMS.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
+
+        systems.computeIfAbsent(eventTypeRaw, k -> {
+            Class<? extends EcsEvent> et = (Class<? extends EcsEvent>) eventTypeRaw;
+            EcsDispatchSystem<? extends EcsEvent> sys = new EcsDispatchSystem<>((Class) et, list);
+            return () -> sys;
+        });
+    }
+
+    private static String ecsKey(@Nonnull JavaPlugin plugin) {
+        return plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
     }
 
     private static void invokeStatic(@Nonnull Method m, @Nonnull Object evt) {
