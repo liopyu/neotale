@@ -1,0 +1,20 @@
+{
+  "Group": "net.liopyu",
+  "Name": "NeoTale",
+  "Version": "0.0.1",
+  "Description": "Simplifies event subscriptions to Neoforge's event bus subscription practice, making event subscription a lot simpler for modders.",
+  "Authors": [
+    {
+      "Name": "Liopyu"
+    }
+  ],
+  "Website": "",
+  "ServerVersion": "*",
+  "Dependencies": {
+  },
+  "OptionalDependencies": {
+  },
+  "DisabledByDefault": false,
+  "Main": "net.liopyu.neotale.NeoTale",
+  "IncludesAssetPack": true
+}

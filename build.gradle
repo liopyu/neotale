@@ -1,0 +1,136 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.3'
+    id 'maven-publish'
+}
+group = 'net.liopyu'
+version = findProperty('mod_version') ?: '0.0.1'
+
+ext {
+    hytaleHome = "${System.getProperty("user.home")}/AppData/Roaming/Hytale"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+    withSourcesJar()
+}
+
+javadoc {
+    options.addStringOption('Xdoclint:-missing', '-quiet')
+}
+
+dependencies {
+    compileOnly(files("$hytaleHome/install/$patchline/package/game/latest/Server/HytaleServer.jar"))
+}
+
+def serverRunDir = file("$projectDir/run")
+serverRunDir.mkdirs()
+
+tasks.register('updatePluginManifest') {
+    def manifestFile = file('src/main/resources/manifest.json')
+    doLast {
+        if (!manifestFile.exists()) {
+            throw new GradleException("Could not find manifest.json at ${manifestFile.path}!")
+        }
+        def manifestJson = new groovy.json.JsonSlurper().parseText(manifestFile.text)
+        manifestJson.Version = version
+        manifestJson.IncludesAssetPack = includes_pack.toBoolean()
+        manifestFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(manifestJson))
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn 'updatePluginManifest'
+}
+
+def hotswapModDir = file("$buildDir/hotswap-mod")
+
+tasks.register('syncHotswapMod', Sync) {
+    dependsOn 'classes'
+    into hotswapModDir
+    from(sourceSets.main.output)
+
+    from({
+        configurations.runtimeClasspath
+                .findAll { it.name.endsWith('.jar') }
+                .findAll { !it.name.equalsIgnoreCase('HytaleServer.jar') }
+                .collect { zipTree(it) }
+    })
+}
+
+idea.project.settings.runConfigurations {
+    'HytaleServer'(org.jetbrains.gradle.ext.Application) {
+        mainClass = 'com.hypixel.hytale.Main'
+        moduleName = project.idea.module.name + '.main'
+
+        def serverJar = file("$hytaleHome/install/$patchline/package/game/latest/Server/HytaleServer.jar").absolutePath
+        def assetsZip = file("$hytaleHome/install/$patchline/package/game/latest/Assets.zip").absolutePath
+        def hotswapDir = hotswapModDir.absolutePath
+
+        jvmArgs = "-XX:AOTCache=HytaleServer.aot -Xms4G -Xmx10G -cp \"${serverJar}\""
+
+        programParameters =
+                "--allow-op " +
+                        "--assets \"${assetsZip}\" " +
+                        "--backup --backup-dir backup --backup-frequency 720 " +
+                        "--mods \"${hotswapDir}\" "
+
+        if (load_user_mods.toBoolean()) {
+            programParameters += "--mods \"$hytaleHome/UserData/Mods\" "
+        }
+
+        workingDirectory = serverRunDir.absolutePath
+    }
+}
+def credsFile = file("$rootDir/maven_credentials.properties")
+def creds = new Properties()
+
+if (credsFile.exists()) {
+    credsFile.withInputStream { creds.load(it) }
+}
+
+def cloudsmithOwner = (creds.getProperty('cloudsmithOwner') ?: '').trim()
+def cloudsmithRepo = (creds.getProperty('cloudsmithRepo') ?: '').trim()
+def cloudsmithUser = (creds.getProperty('cloudsmithUser') ?: '').trim()
+def cloudsmithKey = (creds.getProperty('cloudsmithKey') ?: '').trim()
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            groupId = project.group.toString()
+            artifactId = 'neotale'
+            version = project.version.toString()
+        }
+    }
+
+    repositories {
+        maven {
+            name = "cloudsmith"
+            url = uri("https://maven.cloudsmith.io/${cloudsmithOwner}/${cloudsmithRepo}/")
+            credentials {
+                username = cloudsmithUser
+                password = cloudsmithKey
+            }
+        }
+    }
+}
+
+tasks.withType(PublishToMavenRepository).configureEach {
+    doFirst {
+        if (!cloudsmithOwner || !cloudsmithRepo || !cloudsmithUser || !cloudsmithKey) {
+            throw new GradleException("Missing Cloudsmith credentials in maven_credentials.properties")
+        }
+    }
+}
+
+
+tasks.register('publishCloudsmith') {
+    group = 'publishing'
+    dependsOn 'publishMavenPublicationToCloudsmithRepository'
+}
+tasks.register('printCloudsmithPublishUrl') {
+    doLast {
+        println "https://api.cloudsmith.io/maven/${cloudsmithOwner}/${cloudsmithRepo}/"
+    }
+}
