@@ -165,4 +165,25 @@ public final class Tests {
         );
     }
 
+    @SubscribeSystem(store = SystemStore.CHUNK)
+    public static ISystem<ChunkStore> myChunkSystem() {
+        return new RefSystem<ChunkStore>() {
+
+            @Override
+            public Query<ChunkStore> getQuery() {
+                return Query.any();
+            }
+
+            @Override
+            public void onEntityAdded(Ref<ChunkStore> ref, AddReason reason, Store<ChunkStore> store, CommandBuffer<ChunkStore> buffer) {
+
+            }
+
+            @Override
+            public void onEntityRemove(Ref<ChunkStore> ref, RemoveReason reason, Store<ChunkStore> store, CommandBuffer<ChunkStore> buffer) {
+
+            }
+        };
+    }
+
 }

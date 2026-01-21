@@ -32,9 +32,10 @@ public class NeoTale extends JavaPlugin {
         getEventRegistry().registerGlobal(PluginSetupEvent.class, (evt) -> {
             PluginBase pb = NeoTalePluginSetupEventAccess.extractPlugin(evt);
             if (pb instanceof JavaPlugin jp) {
-                NeoTaleAutoBinder.bind(jp);
+                NeoTaleAutoBinder.onPluginSetup(jp);
             }
         });
+
 
         NeoTaleAutoBinder.bind(this);
 
