@@ -4,7 +4,7 @@ import com.hypixel.hytale.component.system.ISystem;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import net.liopyu.neotale.api.events.EventBusSubscriber;
+import net.liopyu.neotale.api.eventbus.EventBusSubscriber;
 import net.liopyu.neotale.api.system.SubscribeSystem;
 import net.liopyu.neotale.api.system.SystemStore;
 

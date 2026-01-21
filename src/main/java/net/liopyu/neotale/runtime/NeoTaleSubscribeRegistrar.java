@@ -11,7 +11,7 @@ import com.hypixel.hytale.event.IAsyncEvent;
 import com.hypixel.hytale.event.IBaseEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import net.liopyu.neotale.api.events.EventBusSubscriber;
+import net.liopyu.neotale.api.eventbus.EventBusSubscriber;
 import net.liopyu.neotale.api.events.SubscribeEvent;
 
 import javax.annotation.Nonnull;

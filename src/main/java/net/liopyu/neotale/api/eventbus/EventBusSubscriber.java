@@ -1,4 +1,4 @@
-package net.liopyu.neotale.api.events;
+package net.liopyu.neotale.api.eventbus;
 
 import java.lang.annotation.*;
 

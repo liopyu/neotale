@@ -2,7 +2,7 @@ package net.liopyu.neotale.runtime;
 
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.PluginClassLoader;
-import net.liopyu.neotale.api.events.EventBusSubscriber;
+import net.liopyu.neotale.api.eventbus.EventBusSubscriber;
 
 import java.io.File;
 import java.nio.file.Files;
