@@ -75,8 +75,11 @@ public final class NeoTaleSystemAutoRegistrar {
                     plugin.getEntityStoreRegistry().registerSystem((ISystem<EntityStore>) sys);
                 }
             } catch (IllegalArgumentException ignored) {
+            } catch (IllegalStateException e) {
+                throw e;
             } catch (Throwable ignored) {
             }
+
         }
     }
 

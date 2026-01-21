@@ -68,7 +68,8 @@ public final class NeoTaleSubscribeRegistrar {
         for (ISystemHolder holder : systems.values()) {
             try {
                 plugin.getEntityStoreRegistry().registerSystem((com.hypixel.hytale.component.system.ISystem<EntityStore>) holder.system());
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalStateException e) {
+                throw e;
             }
         }
     }

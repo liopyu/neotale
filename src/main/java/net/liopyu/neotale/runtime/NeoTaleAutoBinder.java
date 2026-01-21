@@ -11,12 +11,16 @@ public final class NeoTaleAutoBinder {
 
     public static void bind(JavaPlugin plugin) {
         String key = plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
-        if (BOUND.contains(key)) {
+        if (BOUND.contains(key)) return;
+
+        if (plugin.getFile() == null) {
+            PENDING.put(key, plugin);
             return;
         }
 
         tryBindNow(plugin, key);
     }
+
 
     public static void unbind(JavaPlugin plugin) {
         String key = plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
@@ -26,17 +30,21 @@ public final class NeoTaleAutoBinder {
 
     public static void onPluginSetup(JavaPlugin plugin) {
         String key = plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
+
+        BOUND.remove(key);
+
         JavaPlugin pending = PENDING.remove(key);
-        if (pending != null) {
-            tryBindNow(pending, key);
-        } else {
-            tryBindNow(plugin, key);
-        }
+        tryBindNow(pending != null ? pending : plugin, key);
     }
+
 
     private static void tryBindNow(JavaPlugin plugin, String key) {
         Class<?>[] subscribers = NeoTaleTargetScanner.findSubscriberClasses(plugin);
         if (subscribers.length == 0) {
+            if (plugin.getFile() == null) {
+                PENDING.put(key, plugin);
+                return;
+            }
             BOUND.add(key);
             return;
         }
