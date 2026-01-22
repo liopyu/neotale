@@ -23,15 +23,20 @@ public final class NeoTaleSystemAutoRegistrar {
 
     public static void registerSystems(JavaPlugin plugin, Class<?>[] discoveredClasses) {
         String key = plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
+        System.out.println("[NeoTaleSystemAutoRegistrar] registerSystems plugin=" + plugin.getIdentifier() + " discovered=" + discoveredClasses.length);
 
         List<Method> methods = new ArrayList<>();
 
         for (int i = 0; i < discoveredClasses.length; i++) {
             Class<?> c = discoveredClasses[i];
-            if (c.getAnnotation(EventBusSubscriber.class) == null) continue;
+            boolean isSub = c.getAnnotation(EventBusSubscriber.class) != null;
+            System.out.println("[NeoTaleSystemAutoRegistrar] class=" + c.getName() + " @EventBusSubscriber=" + isSub);
+            if (!isSub) continue;
 
             String regKey = key + ":" + c.getName();
-            if (!REGISTERED.add(regKey)) continue;
+            boolean first = REGISTERED.add(regKey);
+            System.out.println("[NeoTaleSystemAutoRegistrar] regKey=" + regKey + " firstTime=" + first);
+            if (!first) continue;
 
             Method[] declared = c.getDeclaredMethods();
             for (int j = 0; j < declared.length; j++) {
@@ -40,11 +45,15 @@ public final class NeoTaleSystemAutoRegistrar {
                 if (sub == null) continue;
 
                 int mod = m.getModifiers();
-                if (!Modifier.isPublic(mod) || !Modifier.isStatic(mod)) continue;
+                boolean okMods = Modifier.isPublic(mod) && Modifier.isStatic(mod);
+                System.out.println("[NeoTaleSystemAutoRegistrar]  @SubscribeSystem method=" + c.getName() + "#" + m.getName() + " okMods=" + okMods + " return=" + m.getReturnType().getName() + " store=" + sub.store() + " prio=" + sub.priority());
 
+                if (!okMods) continue;
                 if (m.getReturnType() == Void.TYPE) continue;
 
                 Class<?>[] ps = m.getParameterTypes();
+                System.out.println("[NeoTaleSystemAutoRegistrar]   params=" + ps.length);
+
                 if (ps.length == 0) {
                     methods.add(m);
                     continue;
@@ -57,29 +66,38 @@ public final class NeoTaleSystemAutoRegistrar {
         }
 
         methods.sort(Comparator.comparingInt(m -> m.getAnnotation(SubscribeSystem.class).priority()));
+        System.out.println("[NeoTaleSystemAutoRegistrar] methodsToRegister=" + methods.size());
 
         for (int i = 0; i < methods.size(); i++) {
             Method m = methods.get(i);
-
             try {
+                System.out.println("[NeoTaleSystemAutoRegistrar] invoking " + m.getDeclaringClass().getName() + "#" + m.getName() + " params=" + m.getParameterCount());
                 Object sys = (m.getParameterCount() == 0) ? m.invoke(null) : m.invoke(null, plugin);
-                if (sys == null) continue;
 
-                if (!(sys instanceof ISystem<?>)) continue;
+                System.out.println("[NeoTaleSystemAutoRegistrar] returned=" + (sys == null ? "null" : sys.getClass().getName()));
+                if (sys == null) continue;
+                if (!(sys instanceof ISystem<?>)) {
+                    System.out.println("[NeoTaleSystemAutoRegistrar] not an ISystem, skipping");
+                    continue;
+                }
 
                 SubscribeSystem meta = m.getAnnotation(SubscribeSystem.class);
 
                 if (meta.store() == SystemStore.CHUNK) {
+                    System.out.println("[NeoTaleSystemAutoRegistrar] register chunk system");
                     plugin.getChunkStoreRegistry().registerSystem((ISystem<ChunkStore>) sys);
                 } else {
+                    System.out.println("[NeoTaleSystemAutoRegistrar] register entity system");
                     plugin.getEntityStoreRegistry().registerSystem((ISystem<EntityStore>) sys);
                 }
-            } catch (IllegalArgumentException ignored) {
-            } catch (IllegalStateException e) {
-                throw e;
-            } catch (Throwable ignored) {
+            } catch (IllegalArgumentException t) {
+                System.out.println("[NeoTaleSystemAutoRegistrar] IllegalArgumentException " + t.getMessage());
+            } catch (IllegalStateException t) {
+                System.out.println("[NeoTaleSystemAutoRegistrar] IllegalStateException " + t.getMessage());
+                throw t;
+            } catch (Throwable t) {
+                System.out.println("[NeoTaleSystemAutoRegistrar] Throwable " + t.getClass().getName() + " " + String.valueOf(t.getMessage()));
             }
-
         }
     }
 

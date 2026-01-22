@@ -27,24 +27,30 @@ import java.util.function.Function;
 public final class NeoTaleSubscribeRegistrar {
 
     private static final ConcurrentHashMap<String, ConcurrentHashMap<Class<?>, java.util.concurrent.CopyOnWriteArrayList<Method>>> ECS_METHODS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, ISystemHolder> ECS_SYSTEM = new ConcurrentHashMap<>();
+
     private static final ConcurrentHashMap<String, ConcurrentHashMap<Class<?>, ISystemHolder>> ECS_SYSTEMS = new ConcurrentHashMap<>();
+    private static final java.util.Set<String> ECS_REGISTERED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private interface ISystemHolder {
         Object system();
     }
 
-    private static final class EcsDispatchSystem<T extends EcsEvent> extends EntityEventSystem<EntityStore, T> {
-        private final java.util.concurrent.CopyOnWriteArrayList<Method> methods;
+    private static final class EcsDispatchSystem extends EntityEventSystem<EntityStore, EcsEvent> {
+        private final ConcurrentHashMap<Class<?>, java.util.concurrent.CopyOnWriteArrayList<Method>> methodsByType;
 
-        private EcsDispatchSystem(@Nonnull Class<T> eventType, @Nonnull java.util.concurrent.CopyOnWriteArrayList<Method> methods) {
-            super(eventType);
-            this.methods = methods;
+        private EcsDispatchSystem(@Nonnull ConcurrentHashMap<Class<?>, java.util.concurrent.CopyOnWriteArrayList<Method>> methodsByType) {
+            super((Class) EcsEvent.class);
+            this.methodsByType = methodsByType;
         }
 
         @Override
-        public void handle(int index, @Nonnull ArchetypeChunk<EntityStore> chunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer, @Nonnull T event) {
-            for (int i = 0; i < methods.size(); i++) {
-                invokeStatic(methods.get(i), event);
+        public void handle(int index, @Nonnull ArchetypeChunk<EntityStore> chunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer, @Nonnull EcsEvent event) {
+            java.util.concurrent.CopyOnWriteArrayList<Method> list = methodsByType.get(event.getClass());
+            if (list == null || list.isEmpty()) return;
+
+            for (int i = 0; i < list.size(); i++) {
+                invokeStatic(list.get(i), event);
             }
         }
 
@@ -55,63 +61,82 @@ public final class NeoTaleSubscribeRegistrar {
     }
 
     public static void registerAll(@Nonnull JavaPlugin plugin, @Nonnull EventRegistry registry, @Nonnull Class<?>... subscriberClasses) {
+        System.out.println("[NeoTaleSubscribeRegistrar] registerAll plugin=" + plugin.getIdentifier() + " subscriberClasses=" + subscriberClasses.length);
+
         for (int i = 0; i < subscriberClasses.length; i++) {
             registerClass(plugin, registry, subscriberClasses[i]);
         }
 
         String key = ecsKey(plugin);
-        ConcurrentHashMap<Class<?>, ISystemHolder> systems = ECS_SYSTEMS.get(key);
-        if (systems == null || systems.isEmpty()) {
-            return;
-        }
+        ISystemHolder holder = ECS_SYSTEM.get(key);
+        System.out.println("[NeoTaleSubscribeRegistrar] ecs holder=" + (holder == null ? "null" : holder.getClass().getName()) + " key=" + key);
 
-        for (ISystemHolder holder : systems.values()) {
-            try {
-                plugin.getEntityStoreRegistry().registerSystem((com.hypixel.hytale.component.system.ISystem<EntityStore>) holder.system());
-            } catch (IllegalStateException e) {
-                throw e;
-            }
+        if (holder == null) return;
+
+        boolean first = ECS_REGISTERED.add(key);
+        System.out.println("[NeoTaleSubscribeRegistrar] ecs register first=" + first);
+        if (!first) return;
+
+        try {
+            System.out.println("[NeoTaleSubscribeRegistrar] registering ECS dispatch system into entityStoreRegistry");
+            plugin.getEntityStoreRegistry().registerSystem((com.hypixel.hytale.component.system.ISystem<EntityStore>) holder.system());
+            System.out.println("[NeoTaleSubscribeRegistrar] ECS dispatch registered OK");
+        } catch (IllegalStateException ex) {
+            ECS_REGISTERED.remove(key);
+            System.out.println("[NeoTaleSubscribeRegistrar] ECS dispatch IllegalStateException " + ex.getMessage());
+            throw ex;
+        } catch (IllegalArgumentException ex) {
+            ECS_REGISTERED.remove(key);
+            System.out.println("[NeoTaleSubscribeRegistrar] ECS dispatch IllegalArgumentException " + ex.getMessage());
+            throw ex;
         }
     }
 
     private static void registerClass(@Nonnull JavaPlugin plugin, @Nonnull EventRegistry registry, @Nonnull Class<?> cls) {
-        if (cls.getAnnotation(EventBusSubscriber.class) == null) {
-            return;
-        }
+        boolean sub = cls.getAnnotation(EventBusSubscriber.class) != null;
+        System.out.println("[NeoTaleSubscribeRegistrar] registerClass cls=" + cls.getName() + " @EventBusSubscriber=" + sub);
+        if (!sub) return;
 
         Method[] methods = cls.getDeclaredMethods();
         for (int i = 0; i < methods.length; i++) {
             Method m = methods[i];
             SubscribeEvent ann = m.getAnnotation(SubscribeEvent.class);
-            if (ann == null) {
-                continue;
-            }
+            if (ann == null) continue;
 
-            if (!Modifier.isPublic(m.getModifiers()) || !Modifier.isStatic(m.getModifiers())) {
-                continue;
-            }
-
-            if (m.getReturnType() != void.class) {
-                continue;
-            }
-
+            int mod = m.getModifiers();
+            boolean ok = Modifier.isPublic(mod) && Modifier.isStatic(mod);
             Class<?>[] params = m.getParameterTypes();
-            if (params.length != 1) {
-                continue;
-            }
+
+            System.out.println("[NeoTaleSubscribeRegistrar]  @SubscribeEvent method=" + cls.getName() + "#" + m.getName()
+                    + " okMods=" + ok
+                    + " return=" + m.getReturnType().getName()
+                    + " params=" + params.length
+                    + " global=" + ann.global()
+                    + " unhandled=" + ann.unhandled()
+                    + " prio=" + ann.priority());
+
+            if (!ok) continue;
+            if (m.getReturnType() != void.class) continue;
+            if (params.length != 1) continue;
 
             Class<?> eventType = params[0];
+            System.out.println("[NeoTaleSubscribeRegistrar]   eventType=" + eventType.getName()
+                    + " isIBaseEvent=" + IBaseEvent.class.isAssignableFrom(eventType)
+                    + " isEcsEvent=" + EcsEvent.class.isAssignableFrom(eventType));
 
             if (IBaseEvent.class.isAssignableFrom(eventType)) {
                 registerBus(registry, ann, m, eventType);
+                System.out.println("[NeoTaleSubscribeRegistrar]   registered bus handler for " + eventType.getName());
                 continue;
             }
 
             if (EcsEvent.class.isAssignableFrom(eventType)) {
                 registerEcs(plugin, m, eventType);
+                System.out.println("[NeoTaleSubscribeRegistrar]   registered ecs hook for " + eventType.getName());
             }
         }
     }
+
 
     private static void registerBus(@Nonnull EventRegistry registry, @Nonnull SubscribeEvent ann, @Nonnull Method m, @Nonnull Class<?> eventTypeRaw) {
         short prio = ann.priority();
@@ -157,15 +182,12 @@ public final class NeoTaleSubscribeRegistrar {
 
         list.add(m);
 
-        ConcurrentHashMap<Class<?>, ISystemHolder> systems =
-                ECS_SYSTEMS.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
-
-        systems.computeIfAbsent(eventTypeRaw, k -> {
-            Class<? extends EcsEvent> et = (Class<? extends EcsEvent>) eventTypeRaw;
-            EcsDispatchSystem<? extends EcsEvent> sys = new EcsDispatchSystem<>((Class) et, list);
+        ECS_SYSTEM.computeIfAbsent(key, k -> {
+            EcsDispatchSystem sys = new EcsDispatchSystem(perPlugin);
             return () -> sys;
         });
     }
+
 
     private static String ecsKey(@Nonnull JavaPlugin plugin) {
         return plugin.getIdentifier().toString() + ":" + System.identityHashCode(plugin.getClassLoader());
