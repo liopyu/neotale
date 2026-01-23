@@ -19,34 +19,22 @@ public final class NeoTaleTargetScanner {
         Path file = plugin.getFile();
         PluginClassLoader cl = plugin.getClassLoader();
 
-        System.out.println("[NeoTaleTargetScanner] findSubscriberClasses plugin=" + plugin.getIdentifier()
-                + " enabled=" + plugin.isEnabled()
-                + " file=" + file
-                + " cl=" + (cl == null ? "null" : cl.getClass().getName()));
-
         List<Class<?>> out = new ArrayList<>();
 
         if (file == null) {
-            System.out.println("[NeoTaleTargetScanner] file is null, returning 0");
             return out.toArray(new Class<?>[0]);
         }
 
         if (Files.isRegularFile(file) && file.toString().endsWith(".jar")) {
-            System.out.println("[NeoTaleTargetScanner] scanning jar " + file);
             scanJar(out, cl, file.toFile());
         } else if (Files.isDirectory(file)) {
-            System.out.println("[NeoTaleTargetScanner] scanning classes dir " + file);
             scanClassesDir(out, cl, file);
-        } else {
-            System.out.println("[NeoTaleTargetScanner] unknown file type " + file);
         }
 
-        System.out.println("[NeoTaleTargetScanner] found @EventBusSubscriber classes=" + out.size());
         return out.toArray(new Class<?>[0]);
     }
 
     private static void scanJar(List<Class<?>> out, PluginClassLoader cl, File jarPath) {
-        System.out.println("[NeoTaleTargetScanner] scanJar path=" + jarPath);
         try (JarFile jf = new JarFile(jarPath)) {
             int classes = 0;
             Enumeration<JarEntry> e = jf.entries();
@@ -67,14 +55,12 @@ public final class NeoTaleTargetScanner {
 
                 out.add(c);
             }
-            System.out.println("[NeoTaleTargetScanner] scanJar done totalClassEntries=" + classes + " subscribers=" + out.size());
         } catch (Throwable t) {
             System.out.println("[NeoTaleTargetScanner] scanJar Throwable " + t.getClass().getName() + " " + String.valueOf(t.getMessage()));
         }
     }
 
     private static void scanClassesDir(List<Class<?>> out, PluginClassLoader cl, Path root) {
-        System.out.println("[NeoTaleTargetScanner] scanClassesDir root=" + root);
         try {
             final int[] seen = new int[]{0};
             Files.walk(root).forEach(p -> {
@@ -93,7 +79,6 @@ public final class NeoTaleTargetScanner {
 
                 out.add(c);
             });
-            System.out.println("[NeoTaleTargetScanner] scanClassesDir done totalClassFiles=" + seen[0] + " subscribers=" + out.size());
         } catch (Throwable t) {
             System.out.println("[NeoTaleTargetScanner] scanClassesDir Throwable " + t.getClass().getName() + " " + String.valueOf(t.getMessage()));
         }

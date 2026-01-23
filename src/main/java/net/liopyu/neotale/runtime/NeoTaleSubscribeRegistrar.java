@@ -61,20 +61,16 @@ public final class NeoTaleSubscribeRegistrar {
     }
 
     public static void registerAll(@Nonnull JavaPlugin plugin, @Nonnull EventRegistry registry, @Nonnull Class<?>... subscriberClasses) {
-        System.out.println("[NeoTaleSubscribeRegistrar] registerAll plugin=" + plugin.getIdentifier() + " subscriberClasses=" + subscriberClasses.length);
-
         for (int i = 0; i < subscriberClasses.length; i++) {
             registerClass(plugin, registry, subscriberClasses[i]);
         }
 
         String key = ecsKey(plugin);
         ISystemHolder holder = ECS_SYSTEM.get(key);
-        System.out.println("[NeoTaleSubscribeRegistrar] ecs holder=" + (holder == null ? "null" : holder.getClass().getName()) + " key=" + key);
 
         if (holder == null) return;
 
         boolean first = ECS_REGISTERED.add(key);
-        System.out.println("[NeoTaleSubscribeRegistrar] ecs register first=" + first);
         if (!first) return;
 
         try {
@@ -94,7 +90,6 @@ public final class NeoTaleSubscribeRegistrar {
 
     private static void registerClass(@Nonnull JavaPlugin plugin, @Nonnull EventRegistry registry, @Nonnull Class<?> cls) {
         boolean sub = cls.getAnnotation(EventBusSubscriber.class) != null;
-        System.out.println("[NeoTaleSubscribeRegistrar] registerClass cls=" + cls.getName() + " @EventBusSubscriber=" + sub);
         if (!sub) return;
 
         Method[] methods = cls.getDeclaredMethods();
@@ -107,22 +102,11 @@ public final class NeoTaleSubscribeRegistrar {
             boolean ok = Modifier.isPublic(mod) && Modifier.isStatic(mod);
             Class<?>[] params = m.getParameterTypes();
 
-            System.out.println("[NeoTaleSubscribeRegistrar]  @SubscribeEvent method=" + cls.getName() + "#" + m.getName()
-                    + " okMods=" + ok
-                    + " return=" + m.getReturnType().getName()
-                    + " params=" + params.length
-                    + " global=" + ann.global()
-                    + " unhandled=" + ann.unhandled()
-                    + " prio=" + ann.priority());
-
             if (!ok) continue;
             if (m.getReturnType() != void.class) continue;
             if (params.length != 1) continue;
 
             Class<?> eventType = params[0];
-            System.out.println("[NeoTaleSubscribeRegistrar]   eventType=" + eventType.getName()
-                    + " isIBaseEvent=" + IBaseEvent.class.isAssignableFrom(eventType)
-                    + " isEcsEvent=" + EcsEvent.class.isAssignableFrom(eventType));
 
             if (IBaseEvent.class.isAssignableFrom(eventType)) {
                 registerBus(registry, ann, m, eventType);

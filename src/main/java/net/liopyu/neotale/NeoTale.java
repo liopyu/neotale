@@ -23,28 +23,17 @@ public class NeoTale extends JavaPlugin {
     @Override
     protected void setup() {
         super.setup();
-        System.out.println("[NeoTale] setup() start id=" + getIdentifier() + " enabled=" + isEnabled() + " file=" + getFile());
-
+        System.out.println("Starting NeoTale! - Liopyu");
         getEventRegistry().registerGlobal(PluginSetupEvent.class, (evt) -> {
-            System.out.println("[NeoTale] PluginSetupEvent fired evtClass=" + evt.getClass().getName());
-
             PluginBase pb = NeoTalePluginSetupEventAccess.extractPlugin(evt);
-            System.out.println("[NeoTale] PluginSetupEvent extractPlugin=" + (pb == null ? "null" : (pb.getIdentifier() + " type=" + pb.getClass().getName())));
-
             if (pb instanceof JavaPlugin jp) {
-                System.out.println("[NeoTale] onPluginSetup -> " + jp.getIdentifier() + " enabled=" + jp.isEnabled() + " file=" + jp.getFile());
                 NeoTaleAutoBinder.onPluginSetup(jp);
             } else {
-                System.out.println("[NeoTale] extractPlugin was not JavaPlugin");
             }
 
             NeoTaleAutoBinder.tryFinalizeLatePhase();
         });
-
-        System.out.println("[NeoTale] calling bind(this)");
         NeoTaleAutoBinder.bind(this);
-
-        System.out.println("[NeoTale] setup() end");
     }
 
 }
